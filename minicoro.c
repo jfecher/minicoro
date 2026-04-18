@@ -10,6 +10,19 @@ mco_coro* mco_coro_init(void (*effectful_fn)(mco_coro* co)) {
     return co;
 }
 
+mco_coro* mco_coro_init_with_user_data(void (*effectful_fn)(mco_coro* co), void* user_data) {
+    mco_coro* co;
+    mco_desc desc = mco_desc_init(effectful_fn, 0);
+    desc.user_data = user_data;
+    mco_result res = mco_create(&co, &desc);
+    assert(res == MCO_SUCCESS);
+    return co;
+}
+
+void* mco_coro_get_user_data(mco_coro* k) {
+    return mco_get_user_data(k);
+}
+
 char mco_coro_free(mco_coro* k) {
     mco_result res = mco_destroy(k);
     assert(res == MCO_SUCCESS);
@@ -45,4 +58,8 @@ char mco_coro_resume(mco_coro* k) {
     mco_result res = mco_resume(k);
     assert(res == MCO_SUCCESS);
     return 0;
+}
+
+mco_coro* mco_coro_running(void) {
+    return mco_running();
 }
