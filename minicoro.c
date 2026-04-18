@@ -2,15 +2,7 @@
 #include "minicoro.h"
 #include <assert.h>
 
-mco_coro* mco_coro_init(void (*effectful_fn)(mco_coro* co)) {
-    mco_coro* co;
-    mco_desc desc = mco_desc_init(effectful_fn, 0);
-    mco_result res = mco_create(&co, &desc);
-    assert(res == MCO_SUCCESS);
-    return co;
-}
-
-mco_coro* mco_coro_init_with_user_data(void (*effectful_fn)(mco_coro* co), void* user_data) {
+mco_coro* mco_coro_init(void (*effectful_fn)(mco_coro* co), void* user_data) {
     mco_coro* co;
     mco_desc desc = mco_desc_init(effectful_fn, 0);
     desc.user_data = user_data;

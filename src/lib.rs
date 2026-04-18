@@ -1,6 +1,5 @@
 extern "C" {
-    pub fn mco_coro_init(f: *const u8) -> *const u8;
-    pub fn mco_coro_init_with_user_data(f: *const u8, user_data: *const u8) -> *const u8;
+    pub fn mco_coro_init(f: *const u8, user_data: *const u8) -> *const u8;
     pub fn mco_coro_get_user_data(k: *const u8) -> *const u8;
     pub fn mco_coro_free(k: *const u8) -> u8;
     pub fn mco_coro_is_suspended(k: *const u8) -> bool;
