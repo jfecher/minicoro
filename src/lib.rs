@@ -8,4 +8,6 @@ extern "C" {
     pub fn mco_coro_suspend(k: *const u8) -> u8;
     pub fn mco_coro_resume(k: *const u8) -> u8;
     pub fn mco_coro_running() -> *const u8;
+    pub fn mco_coro_bytes_stored(k: *const u8) -> usize;
+    pub fn mco_coro_transfer(src: *const u8, dst: *const u8, len: usize) -> u8;
 }
