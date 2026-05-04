@@ -2,6 +2,7 @@
 #include "minicoro.h"
 #include <assert.h>
 #include <string.h>
+#include <setjmp.h>
 
 mco_coro* mco_coro_init(void (*effectful_fn)(mco_coro* co), void* user_data) {
     mco_coro* co;
@@ -75,4 +76,26 @@ char mco_coro_transfer(mco_coro* src, mco_coro* dst, size_t len) {
     dst->bytes_stored += len;
     src->bytes_stored -= len;
     return 0;
+}
+
+// Not a coroutine function but used by Fail/Throw-like effects.
+//
+// Calls `body(env)` in a context where any wrapper that calls
+// `mco_abort_longjmp(buf, val)` will unwind back to this call and
+// `mco_abort_call` will return `val`. Returns 0 if body completes normally.
+//
+// `buf` must point to at least `sizeof(jmp_buf)` bytes.
+int mco_abort_call(void* buf, void (*body)(void* env), void* env) {
+    int v = setjmp(*(jmp_buf*)buf);
+    if (v == 0) {
+        body(env);
+        return 0;
+    }
+    return v;
+}
+
+// Unwind back to the matching `mco_abort_call`, setting its return value to
+// `val`. Never returns.
+void mco_abort_longjmp(void* buf, int val) {
+    longjmp(*(jmp_buf*)buf, val);
 }
