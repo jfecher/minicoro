@@ -26,19 +26,21 @@ WASMTIME=wasmtime
 # OUTEXT=.exe
 # RUNNER=
 
-all: testsuite example mt-example simple benchmark mem-stress
+all: testsuite example mt-example simple benchmark mem-stress abort
 
-test: testsuite
+test: testsuite abort
 	$(RUNNER) ./testsuite$(OUTEXT)
+	$(RUNNER) ./abort$(OUTEXT)
 
 test-example: example
 	$(RUNNER) ./example$(OUTEXT)
 
-test-all: testsuite example mt-example simple
+test-all: testsuite example mt-example simple abort
 	$(RUNNER) ./testsuite$(OUTEXT)
 	$(RUNNER) ./example$(OUTEXT)
 	$(RUNNER) ./mt-example$(OUTEXT)
 	$(RUNNER) ./simple$(OUTEXT)
+	$(RUNNER) ./abort$(OUTEXT)
 
 bench: benchmark
 	./benchmark$(OUTEXT)
@@ -61,8 +63,13 @@ benchmark: benchmark.c ../minicoro.h Makefile
 mem-stress: mem-stress.c ../minicoro.h Makefile
 	$(CC) mem-stress.c -o mem-stress $(EXTRA_CFLAGS) $(CFLAGS) -std=gnu11
 
+# Unlike the other tests this one links ../minicoro.c: the abort-handler support
+# it exercises lives there, not in the single-header library.
+abort: abort.c ../minicoro.c ../minicoro.h Makefile
+	$(CC) abort.c ../minicoro.c -o abort $(EXTRA_CFLAGS) $(CFLAGS) -std=c99
+
 clean:
-	rm -f testsuite$(OUTEXT) example$(OUTEXT) mt-example$(OUTEXT) simple$(OUTEXT) benchmark$(OUTEXT)
+	rm -f testsuite$(OUTEXT) example$(OUTEXT) mt-example$(OUTEXT) simple$(OUTEXT) benchmark$(OUTEXT) abort$(OUTEXT)
 
 test-riscv64:
 	$(MAKE) --no-print-directory CC=riscv64-elf-gcc CFLAGS="-march=rv64gc -mabi=lp64d" RUNNER=qemu-riscv64 clean test test-example

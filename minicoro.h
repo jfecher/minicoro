@@ -564,6 +564,35 @@ static MCO_FORCE_INLINE size_t _mco_align_forward(size_t addr, size_t align) {
 /* Variable holding the current running coroutine per thread. */
 static MCO_THREAD_LOCAL mco_coro* mco_current_co = NULL;
 
+#ifdef _MCO_USE_ASAN
+#ifdef __linux__
+#include <pthread.h>
+#endif
+/* The plain thread stack's bounds, needed to announce the thread stack as a
+   fiber-switch target (yield-to-thread below, and cross-stack abort handlers
+   in minicoro.c). Captured on the first jumpin from the thread. */
+static MCO_THREAD_LOCAL void* _mco_asan_main_bottom = NULL;
+static MCO_THREAD_LOCAL size_t _mco_asan_main_size = 0;
+
+/* Best effort: on platforms without pthread_getattr_np the bounds stay
+   unknown, degrading same-stack aborts after coroutine use to an "ignoring
+   requested __asan_handle_no_return" warning, never an error. */
+static void _mco_asan_capture_thread_stack(void) {
+#ifdef __linux__
+  pthread_attr_t attr;
+  void* addr = NULL;
+  size_t size = 0;
+  if(_mco_asan_main_bottom != NULL) return;
+  if(pthread_getattr_np(pthread_self(), &attr) != 0) return;
+  if(pthread_attr_getstack(&attr, &addr, &size) == 0) {
+    _mco_asan_main_bottom = addr;
+    _mco_asan_main_size = size;
+  }
+  pthread_attr_destroy(&attr);
+#endif
+}
+#endif
+
 static MCO_FORCE_INLINE void _mco_prepare_jumpin(mco_coro* co) {
   /* Set the old coroutine to normal state and update it. */
   mco_coro* prev_co = mco_running(); /* Must access through `mco_running`. */
@@ -580,6 +609,8 @@ static MCO_FORCE_INLINE void _mco_prepare_jumpin(mco_coro* co) {
     size_t size_old = 0;
     __sanitizer_finish_switch_fiber(prev_co->asan_prev_stack, (const void**)&bottom_old, &size_old);
     prev_co->asan_prev_stack = NULL;
+  } else {
+    _mco_asan_capture_thread_stack();
   }
   __sanitizer_start_switch_fiber(&co->asan_prev_stack, co->stack_base, co->stack_size);
 #endif
@@ -606,6 +637,15 @@ static MCO_FORCE_INLINE void _mco_prepare_jumpout(mco_coro* co) {
   co->asan_prev_stack = NULL;
   if(prev_co) {
     __sanitizer_start_switch_fiber(&prev_co->asan_prev_stack, bottom_old, size_old);
+  } else if(_mco_asan_main_bottom) {
+    /* Announce the thread stack; mco_resume finishes this switch after the
+       context switch lands back there. Without it, the thread keeps running
+       with this coroutine's bounds installed, so any longjmp performed there
+       (a same-stack abort handler after coroutine use) makes ASan skip its
+       unpoisoning with an "ignoring requested __asan_handle_no_return"
+       warning, leaving the jumped-over frames' shadow poisoned -- which later
+       reads as wild stack-buffer-overflows on valid frames. */
+    __sanitizer_start_switch_fiber(&co->asan_prev_stack, _mco_asan_main_bottom, _mco_asan_main_size);
   }
 #endif
 #ifdef _MCO_USE_TSAN
@@ -1807,6 +1847,16 @@ mco_result mco_resume(mco_coro* co) {
   }
   co->state = MCO_RUNNING; /* The coroutine is now running. */
   _mco_jumpin(co);
+#ifdef _MCO_USE_ASAN
+  if(mco_running() == NULL && _mco_asan_main_bottom) {
+    /* Back on the plain thread stack: complete the switch announced by
+       _mco_prepare_jumpout's yield-to-thread branch. */
+    void* bottom_old = NULL;
+    size_t size_old = 0;
+    __sanitizer_finish_switch_fiber(co->asan_prev_stack, (const void**)&bottom_old, &size_old);
+    co->asan_prev_stack = NULL;
+  }
+#endif
   return MCO_SUCCESS;
 }
 
