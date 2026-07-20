@@ -189,7 +189,10 @@ void mco_abort_longjmp(void* buf, int val) {
     longjmp(ctx->jb, val);
 }
 
-#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+#ifndef __has_feature
+# define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
 void __asan_unpoison_memory_region(void const volatile* addr, size_t size);
 #endif
 
