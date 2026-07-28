@@ -62,40 +62,52 @@ size_t mco_coro_bytes_stored(mco_coro* k) {
     return mco_get_bytes_stored(k);
 }
 
-// Bulk-move `len` bytes from `src`'s storage to `dst`'s storage, preserving
-// byte order. Used by the effect-lowering pass to forward an effect through a
-// nested handler's drive without parsing the args by type.
+// Memcpy `len` bytes from `src`'s storage to `dst`'s storage, preserving byte order.
 char mco_coro_transfer(mco_coro* src, mco_coro* dst, size_t len) {
     if (len == 0) return 0;
     assert(src != NULL && dst != NULL);
     assert(len <= src->bytes_stored);
     assert(dst->bytes_stored + len <= dst->storage_size);
-    memcpy(&dst->storage[dst->bytes_stored],
-           &src->storage[src->bytes_stored - len],
-           len);
+    memcpy(&dst->storage[dst->bytes_stored], &src->storage[src->bytes_stored - len], len);
     dst->bytes_stored += len;
     src->bytes_stored -= len;
     return 0;
 }
 
-// Not a coroutine function but used by Fail/Throw-like effects.
+// TODO: Investigate whether we need a stack of these and remove this entirely if so.
+static MCO_THREAD_LOCAL mco_coro* pending_abort_reap = NULL;
+
+// Unwind back to the matching `_setjmp` call, setting its return value to `val`. Never
+// returns.
+// `setjmp_coro` can be NULL for the main stack.
 //
-// Calls `body(env)` in a context where any wrapper that calls
-// `mco_abort_longjmp(buf, val)` will unwind back to this call and
-// `mco_abort_call` will return `val`. Returns 0 if body completes normally.
-//
-// `buf` must point to at least `sizeof(jmp_buf)` bytes.
-int mco_abort_call(void* buf, void (*body)(void* env), void* env) {
-    int v = setjmp(*(jmp_buf*)buf);
-    if (v == 0) {
-        body(env);
-        return 0;
+// TODO: Temporary: breaks RAII, but so does the whole abort optimization.
+void mco_abort_longjmp(void* buf, mco_coro* setjmp_coro, int val) {
+    mco_coro* coro = mco_running();
+    mco_coro* leaf = coro;
+    while (coro != setjmp_coro) {
+        mco_coro* prev = coro->prev_co;
+        coro->state = MCO_SUSPENDED;
+        if (coro != leaf) {
+            mco_result res = mco_destroy(coro);
+            assert(res == MCO_SUCCESS);
+        }
+        coro = prev;
     }
-    return v;
+    if (leaf != setjmp_coro) {
+        leaf->prev_co = NULL;
+        pending_abort_reap = leaf;
+    }
+    mco_current_co = setjmp_coro;
+    if (setjmp_coro) setjmp_coro->state = MCO_RUNNING;
+    longjmp(*(jmp_buf*)buf, val);
 }
 
-// Unwind back to the matching `mco_abort_call`, setting its return value to
-// `val`. Never returns.
-void mco_abort_longjmp(void* buf, int val) {
-    longjmp(*(jmp_buf*)buf, val);
+char mco_reap_pending_abort(void) {
+    if (pending_abort_reap) {
+        mco_result res = mco_destroy(pending_abort_reap);
+        assert(res == MCO_SUCCESS);
+        pending_abort_reap = NULL;
+    }
+    return 0;
 }

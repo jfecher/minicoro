@@ -11,6 +11,6 @@ extern "C" {
     pub fn mco_coro_bytes_stored(k: *const u8) -> usize;
     pub fn mco_coro_transfer(src: *const u8, dst: *const u8, len: usize) -> u8;
 
-    pub fn mco_abort_call(buf: *mut u8, body: unsafe extern "C" fn(*mut u8), env: *mut u8) -> i32;
-    pub fn mco_abort_longjmp(buf: *mut u8, val: i32) -> !;
+    pub fn mco_abort_longjmp(buf: *mut u8, target: *const u8, val: i32) -> !;
+    pub fn mco_reap_pending_abort() -> u8;
 }
