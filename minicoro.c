@@ -1,4 +1,5 @@
 #define MINICORO_IMPL
+#include <stdio.h>
 #include "minicoro.h"
 #include <assert.h>
 #include <string.h>
@@ -110,4 +111,13 @@ char mco_reap_pending_abort(void) {
         pending_abort_reap = NULL;
     }
     return 0;
+}
+
+/* Used by Ante's stdlib to write to stdout and stderr portably */
+void ante_write_stdout(const char* data, size_t length) {
+    fwrite(data, 1, length, stdout);
+}
+
+void ante_write_stderr(const char* data, size_t length) {
+    fwrite(data, 1, length, stderr);
 }
