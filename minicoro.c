@@ -4,6 +4,11 @@
 #include <assert.h>
 #include <string.h>
 #include <setjmp.h>
+#include <errno.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 mco_coro* mco_coro_init(void (*effectful_fn)(mco_coro* co), void* user_data) {
     mco_coro* co;
@@ -120,4 +125,16 @@ void ante_write_stdout(const char* data, size_t length) {
 
 void ante_write_stderr(const char* data, size_t length) {
     fwrite(data, 1, length, stderr);
+}
+
+int ante_create_dir(const char* path) {
+#ifdef _WIN32
+    if (_mkdir(path) == 0) return 0;
+#else
+    if (mkdir(path, 0777) == 0) return 0;
+#endif
+    if (errno != EEXIST) return -1;
+
+    struct stat info;
+    return stat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFDIR ? 0 : -1;
 }
