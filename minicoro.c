@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "minicoro.h"
 #include <assert.h>
+#include <stdbool.h>
 #include <string.h>
 #include <setjmp.h>
 #include <errno.h>
@@ -32,7 +33,7 @@ char mco_coro_free(mco_coro* k) {
     return 0;
 }
 
-char mco_coro_is_suspended(mco_coro* k) {
+bool mco_coro_is_suspended(mco_coro* k) {
     return mco_status(k) == MCO_SUSPENDED;
 }
 
