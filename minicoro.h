@@ -304,6 +304,7 @@ struct mco_coro {
   void* tsan_prev_fiber; /* Used by thread sanitizer. */
   void* tsan_fiber; /* Used by thread sanitizer. */
   size_t magic_number; /* Used to check stack overflow. */
+  void* message; /* The effect message, or the result when finished. */
 };
 
 /* Structure used to initialize a coroutine. */

@@ -49,6 +49,15 @@ char mco_coro_pop(mco_coro* k, void* arg, size_t size) {
     return 0;
 }
 
+char mco_coro_set_message(mco_coro* k, void* message) {
+    k->message = message;
+    return 0;
+}
+
+void* mco_coro_get_message(mco_coro* k) {
+    return k->message;
+}
+
 char mco_coro_suspend(mco_coro* k) {
     mco_result res = mco_yield(k);
     assert(res == MCO_SUCCESS);
