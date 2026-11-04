@@ -1,4 +1,6 @@
 #define MINICORO_IMPL
+// Ante passes effect arguments and results through the message field instead of the storage buffer
+#define MCO_DEFAULT_STORAGE_SIZE 0
 #include <stdio.h>
 #include "minicoro.h"
 #include <assert.h>
@@ -37,18 +39,6 @@ bool mco_coro_is_suspended(mco_coro* k) {
     return mco_status(k) == MCO_SUSPENDED;
 }
 
-char mco_coro_push(mco_coro* k, const void* arg, size_t size) {
-    mco_result res = mco_push(k, arg, size);
-    assert(res == MCO_SUCCESS);
-    return 0;
-}
-
-char mco_coro_pop(mco_coro* k, void* arg, size_t size) {
-    mco_result res = mco_pop(k, arg, size);
-    assert(res == MCO_SUCCESS);
-    return 0;
-}
-
 char mco_coro_set_message(mco_coro* k, void* message) {
     k->message = message;
     return 0;
@@ -72,22 +62,6 @@ char mco_coro_resume(mco_coro* k) {
 
 mco_coro* mco_coro_running(void) {
     return mco_running();
-}
-
-size_t mco_coro_bytes_stored(mco_coro* k) {
-    return mco_get_bytes_stored(k);
-}
-
-// Memcpy `len` bytes from `src`'s storage to `dst`'s storage, preserving byte order.
-char mco_coro_transfer(mco_coro* src, mco_coro* dst, size_t len) {
-    if (len == 0) return 0;
-    assert(src != NULL && dst != NULL);
-    assert(len <= src->bytes_stored);
-    assert(dst->bytes_stored + len <= dst->storage_size);
-    memcpy(&dst->storage[dst->bytes_stored], &src->storage[src->bytes_stored - len], len);
-    dst->bytes_stored += len;
-    src->bytes_stored -= len;
-    return 0;
 }
 
 // TODO: Investigate whether we need a stack of these and remove this entirely if so.
